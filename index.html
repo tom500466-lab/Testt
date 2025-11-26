@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企業算力決策儀表板：TPU vs GPU</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
+        .gradient-gpu { background: linear-gradient(135deg, #76b900 0%, #1a4d00 100%); }
+        .gradient-tpu { background: linear-gradient(135deg, #4285F4 0%, #0d47a1 100%); }
+        .card-hover:hover { transform: translateY(-5px); transition: all 0.3s ease; }
+        
+        /* Custom Scrollbar for sleek look */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        /* Animation classes */
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-gray-800">⚡ 算力決策中心</span>
+                </div>
+                <!-- Removed Tab Buttons for Single Page Layout -->
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16">
+
+        <!-- SECTION 1: Decision Wizard -->
+        <section id="content-wizard" class="block space-y-8">
+            <div class="border-b pb-4 mb-6">
+                <h2 class="text-3xl font-bold text-gray-900">1. 決策嚮導</h2>
+                <p class="mt-2 text-lg text-gray-600">回答以下三個關於您專案的問題，系統將為您推薦最佳方案。</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Question Form -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">1. 您的主要任務類型是？</label>
+                            <select id="q1" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                                <option value="graphics">圖形渲染 / 3D 遊戲開發 / 影片剪輯</option>
+                                <option value="general_ai">通用 AI 開發 (小模型、多種架構嘗試)</option>
+                                <option value="massive_ai">超大規模 AI 訓練 (如 LLM, 推薦系統)</option>
+                                <option value="scientific">傳統科學計算 (流體力學, 分子模擬)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">2. 您使用的開發框架或生態系？</label>
+                            <select id="q2" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                                <option value="cuda">高度依賴 CUDA / C++ 自定義算子</option>
+                                <option value="pytorch">PyTorch (標準版)</option>
+                                <option value="tensorflow">TensorFlow / JAX / PyTorch XLA</option>
+                                <option value="graphic_eng">Unreal Engine / Unity / Blender</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">3. 專案的運算規模與預算敏感度？</label>
+                            <select id="q3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                                <option value="small">小規模 / 快速原型開發 (不在乎電費)</option>
+                                <option value="medium">中等規模 / 需要靈活調試</option>
+                                <option value="huge">極大規模 / 極度在乎電費與訓練時間 (成本敏感)</option>
+                            </select>
+                        </div>
+
+                        <button id="analyze-btn" onclick="calculateRecommendation()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition flex justify-center items-center">
+                            <span>分析並取得建議</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Result Display Area -->
+                <div class="relative">
+                    <!-- Result Display -->
+                    <div id="result-card" class="bg-gray-50 p-6 rounded-xl shadow-inner border border-gray-200 flex flex-col justify-center items-center text-center hidden h-full min-h-[300px]">
+                        <!-- Dynamic Content will be injected here -->
+                    </div>
+                    
+                    <!-- Placeholder for result -->
+                    <div id="result-placeholder" class="bg-white p-6 rounded-xl shadow border border-gray-200 flex flex-col justify-center items-center text-center opacity-50 h-full min-h-[300px]">
+                        <div class="text-6xl mb-4">🤖</div>
+                        <h3 class="text-xl font-bold">等待分析...</h3>
+                        <p>請左側選擇條件後點擊按鈕</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: Comparison & Simulation -->
+        <section id="content-comparison" class="block space-y-8">
+            <div class="border-b pb-4 mb-6 mt-12">
+                <h2 class="text-3xl font-bold text-gray-900">2. 詳細對比 & 模擬</h2>
+                <p class="mt-2 text-lg text-gray-600">互動式模擬與規格比較表</p>
+            </div>
+            
+            <!-- Scale Simulator -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h3 class="text-2xl font-bold mb-4 text-gray-800">📈 成本效益模擬器</h3>
+                <p class="text-gray-600 mb-6">拖動滑桿，觀察隨著「模型參數量（矩陣規模）」變大，GPU 與 TPU 的效能與成本變化。</p>
+                
+                <div class="flex items-center space-x-4 mb-6">
+                    <span class="text-sm font-bold text-gray-500">小型專案</span>
+                    <input type="range" min="1" max="100" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" id="scaleSlider" oninput="updateChart(this.value)">
+                    <span class="text-sm font-bold text-red-500">超大型專案 (LLM)</span>
+                </div>
+
+                <div class="h-64 w-full">
+                    <canvas id="efficiencyChart"></canvas>
+                </div>
+                <div class="mt-4 grid grid-cols-2 gap-4 text-center">
+                    <div class="p-3 bg-green-50 rounded border border-green-200">
+                        <h4 class="font-bold text-green-800">GPU 狀態</h4>
+                        <p id="gpu-status-text" class="text-sm text-green-700">處理中...</p>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded border border-blue-200">
+                        <h4 class="font-bold text-blue-800">TPU 狀態</h4>
+                        <p id="tpu-status-text" class="text-sm text-blue-700">處理中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comparison Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- GPU Card -->
+                <div class="bg-white rounded-xl shadow overflow-hidden card-hover">
+                    <div class="p-4 gradient-gpu">
+                        <h3 class="text-white text-xl font-bold flex items-center">
+                            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                            GPU (通用戰士)
+                        </h3>
+                    </div>
+                    <div class="p-6">
+                        <ul class="space-y-3 text-sm">
+                            <li class="flex items-start"><span class="text-green-600 mr-2">✔</span> <b>靈活度極高</b>：支援 CUDA，幾乎所有 AI 框架與科學計算皆通。</li>
+                            <li class="flex items-start"><span class="text-green-600 mr-2">✔</span> <b>圖形處理</b>：唯一選擇，用於渲染、遊戲、影像解碼。</li>
+                            <li class="flex items-start"><span class="text-green-600 mr-2">✔</span> <b>小批量優勢</b>：如果 batch size 小，GPU 反應更快。</li>
+                            <li class="flex items-start"><span class="text-red-500 mr-2">✘</span> <b>記憶體瓶頸</b>：在大規模矩陣運算時，頻寬限制較大。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- TPU Card -->
+                <div class="bg-white rounded-xl shadow overflow-hidden card-hover">
+                    <div class="p-4 gradient-tpu">
+                        <h3 class="text-white text-xl font-bold flex items-center">
+                            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                            TPU (矩陣專家)
+                        </h3>
+                    </div>
+                    <div class="p-6">
+                        <ul class="space-y-3 text-sm">
+                            <li class="flex items-start"><span class="text-blue-600 mr-2">✔</span> <b>吞吐量怪物</b>：使用脈動陣列，處理超大矩陣乘法速度極快。</li>
+                            <li class="flex items-start"><span class="text-blue-600 mr-2">✔</span> <b>能效比之王</b>：每瓦特電力能算更多次，適合 24 小時不停機訓練。</li>
+                            <li class="flex items-start"><span class="text-blue-600 mr-2">✔</span> <b>線性擴展</b>：多顆 TPU 串聯 (TPU Pod) 效率耗損極低。</li>
+                            <li class="flex items-start"><span class="text-red-500 mr-2">✘</span> <b>生態系限制</b>：高度綁定 TensorFlow/JAX (雖 PyTorch 支援度變好，但仍不如 GPU)。</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+        <!-- SECTION 3: Education -->
+        <section id="content-education" class="block space-y-8">
+            <div class="border-b pb-4 mb-6 mt-12">
+                <h2 class="text-3xl font-bold text-gray-900">3. 原理圖解</h2>
+                <p class="mt-2 text-lg text-gray-600">深入了解底層運作邏輯</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Concept 1: Matrix Operations -->
+                <div class="bg-white p-6 rounded-xl shadow border-l-4 border-blue-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">什麼是矩陣運算？ (Matrix Ops)</h3>
+                    <div class="bg-gray-100 p-4 rounded mb-4 text-center">
+                        <div class="text-4xl mb-2">🔢 ✖️ 🔢</div>
+                        <p class="text-xs text-gray-500">AI 的本質就是兩個巨大的數字表相乘</p>
+                    </div>
+                    <p class="text-gray-600 mb-4">
+                        試想你要算 100 萬個學生的加權平均分數。
+                        <br><br>
+                        <b>GPU (切菜工)</b>：叫 1000 個人進來，每人算 1000 個學生的分數。算完要回報（存取記憶體），再領下一批任務。人多手雜，管理成本高。
+                        <br><br>
+                        <b>TPU (流水線)</b>：建立一條專門的輸送帶。學生的分數從一頭放進去，經過中間的機器直接算出結果從另一頭出來。<b>數據在晶片內部流動，不需要一直跑去倉庫（記憶體）</b>。這就是「脈動陣列」。
+                    </p>
+                </div>
+
+                <!-- Concept 2: Power Efficiency -->
+                <div class="bg-white p-6 rounded-xl shadow border-l-4 border-green-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">什麼是能效比？ (Energy Efficiency)</h3>
+                    <div class="bg-gray-100 p-4 rounded mb-4 text-center">
+                        <div class="text-4xl mb-2">⚡ 💰</div>
+                        <p class="text-xs text-gray-500">每花 1 塊錢電費，能做多少事？</p>
+                    </div>
+                    <p class="text-gray-600 mb-4">
+                        對於企業來說，這直接等於<b>營運成本 (OpEx)</b>。
+                        <br><br>
+                        當訓練一個像是 ChatGPT 的模型需要數個月時，GPU 因為頻繁讀寫記憶體（這動作很耗電且產生廢熱），電費可能高達數百萬美元。
+                        <br><br>
+                        TPU 因為減少了記憶體存取次數（數據復用），它可以用更少的電，完成同樣的計算量。這就是高能效比。
+                    </p>
+                </div>
+            </div>
+
+            <!-- Analogy Visual -->
+            <div class="bg-indigo-900 rounded-xl p-8 text-white text-center">
+                <h3 class="text-2xl font-bold mb-4">一句話總結</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+                    <div>
+                        <div class="text-6xl mb-4">⚔️</div>
+                        <h4 class="text-xl font-bold text-green-400">GPU = 特種部隊</h4>
+                        <p class="mt-2 text-indigo-200">什麼武器都會用，反應快，適應力強，能打游擊戰。</p>
+                        <p class="mt-1 text-sm text-gray-400">適合：多變的任務、開發階段</p>
+                    </div>
+                    <div>
+                        <div class="text-6xl mb-4">🏭</div>
+                        <h4 class="text-xl font-bold text-blue-400">TPU = 自動化超級工廠</h4>
+                        <p class="mt-2 text-indigo-200">只能生產特定產品，但產能是手工業的一萬倍。</p>
+                        <p class="mt-1 text-sm text-gray-400">適合：大規模量產、模型訓練</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Script for Logic -->
+    <script>
+        // Decision Wizard Logic
+        function calculateRecommendation() {
+            // UI Feedback: Button Loading State
+            const btn = document.getElementById('analyze-btn');
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 分析中...`;
+            btn.disabled = true;
+
+            // Fade out existing result if visible
+            const resCard = document.getElementById('result-card');
+            const placeholder = document.getElementById('result-placeholder');
+            resCard.classList.add('opacity-0'); 
+            
+            // Simulate processing delay (500ms) for better UX
+            setTimeout(() => {
+                const task = document.getElementById('q1').value;
+                const framework = document.getElementById('q2').value;
+                const scale = document.getElementById('q3').value;
+                
+                let resultType = '';
+                let title = '';
+                let desc = '';
+                let colorClass = '';
+                let icon = '';
+
+                // Logic Tree
+                if (task === 'graphics' || framework === 'graphic_eng') {
+                    resultType = 'GPU';
+                    title = '推薦使用 GPU';
+                    desc = 'TPU 無法處理圖形渲染、光線追蹤或 3D 建模任務。這是 GPU 的絕對領域。';
+                    colorClass = 'bg-green-100 border-green-500 text-green-800';
+                    icon = '🎮';
+                } else if (framework === 'cuda') {
+                    resultType = 'GPU';
+                    title = '推薦使用 GPU';
+                    desc = '您的程式碼高度依賴 CUDA 生態系或 C++ 自定義算子，移植到 TPU (需改寫為 XLA) 的成本過高。';
+                    colorClass = 'bg-green-100 border-green-500 text-green-800';
+                    icon = '⚙️';
+                } else if (task === 'scientific' && framework !== 'tensorflow' && framework !== 'jax') {
+                    resultType = 'GPU';
+                    title = '推薦使用 GPU';
+                    desc = '傳統科學計算庫對 GPU 的支援遠好於 TPU。';
+                    colorClass = 'bg-green-100 border-green-500 text-green-800';
+                    icon = '🧪';
+                } else if (scale === 'huge' && (framework === 'tensorflow' || framework === 'jax' || framework === 'pytorch')) {
+                    resultType = 'TPU';
+                    title = '強烈推薦使用 TPU';
+                    desc = '在極大規模訓練下，TPU 的「線性擴展能力」與「能效比」將為公司節省大量時間與數百萬的電力成本。Google 雲端生態系對此支援最佳。';
+                    colorClass = 'bg-blue-100 border-blue-500 text-blue-800';
+                    icon = '🏭';
+                } else if (scale === 'medium' && (framework === 'tensorflow' || framework === 'jax')) {
+                    resultType = 'TPU';
+                    title = '建議嘗試 TPU';
+                    desc = '既然您使用 JAX/TensorFlow，TPU 能提供極佳的性價比。';
+                    colorClass = 'bg-blue-50 border-blue-400 text-blue-700';
+                    icon = '🚀';
+                } else {
+                    // Default fallback
+                    resultType = 'GPU';
+                    title = '建議使用 GPU';
+                    desc = 'GPU 的通用性最高，生態系最完整。對於原型開發、除錯或中小規模任務，GPU 是最安全的選擇，租用也最方便（AWS, GCP, Azure 都有）。';
+                    colorClass = 'bg-green-50 border-green-400 text-green-700';
+                    icon = '🛡️';
+                }
+
+                // Render Result
+                const resultHTML = `
+                    <div class="${colorClass} p-8 rounded-full w-24 h-24 flex items-center justify-center text-4xl mb-4 shadow-sm mx-auto fade-in">
+                        ${icon}
+                    </div>
+                    <div class="fade-in">
+                        <h3 class="text-2xl font-bold mb-2 ${resultType === 'GPU' ? 'text-green-800' : 'text-blue-800'}">${title}</h3>
+                        <p class="text-gray-700 max-w-md mx-auto">${desc}</p>
+                        <div class="mt-6 text-sm text-gray-500 bg-white bg-opacity-50 p-3 rounded">
+                            核心考量：${resultType === 'GPU' ? '靈活性、圖形支援、CUDA 生態' : '矩陣運算效率、能效比、擴展性'}
+                        </div>
+                    </div>
+                `;
+
+                // Update DOM
+                placeholder.classList.add('hidden');
+                resCard.classList.remove('hidden');
+                resCard.innerHTML = resultHTML;
+                resCard.className = `p-8 rounded-xl shadow-lg border-2 flex flex-col justify-center items-center text-center transition-all duration-300 h-full min-h-[300px] ${resultType === 'GPU' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`;
+                
+                // Trigger Fade In
+                // Removing opacity-0 class to fade in if it was already there, 
+                // but we also rely on inner content animation.
+                setTimeout(() => resCard.classList.remove('opacity-0'), 10);
+
+                // Reset Button
+                btn.innerHTML = originalBtnText;
+                btn.disabled = false;
+
+            }, 500); // 500ms delay simulates calculation
+        }
+
+        // Chart Logic
+        let myChart = null;
+
+        function initChart() {
+            const ctx = document.getElementById('efficiencyChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['小模型', '中模型', '大模型', '超大模型'],
+                    datasets: [{
+                        label: 'GPU 單位運算成本 ($)',
+                        data: [10, 25, 60, 100], // Linear increase
+                        borderColor: '#76b900',
+                        backgroundColor: '#76b900',
+                        tension: 0.4
+                    }, {
+                        label: 'TPU 單位運算成本 ($)',
+                        data: [20, 30, 45, 55], // High startup cost, but efficient at scale
+                        borderColor: '#4285F4',
+                        backgroundColor: '#4285F4',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: '相對成本 (越低越好)' }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.raw;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart(val) {
+            // Simulate changing efficiency based on scale
+            // Val 1-100
+            
+            const numericVal = parseInt(val);
+            const gpuCost = 10 + (numericVal * 1.2); // GPU costs rise linearly with complexity
+            const tpuCost = 30 + (numericVal * 0.4); // TPU has higher base cost but scales better
+
+            // Text update
+            const gpuText = document.getElementById('gpu-status-text');
+            const tpuText = document.getElementById('tpu-status-text');
+
+            if (numericVal < 30) {
+                gpuText.innerText = "高效率區間：靈活且快速";
+                tpuText.innerText = "低效率區間：啟動開銷過大";
+                gpuText.parentElement.classList.add('ring-2', 'ring-green-400');
+                tpuText.parentElement.classList.remove('ring-2', 'ring-blue-400');
+            } else if (numericVal > 70) {
+                gpuText.innerText = "成本激增：記憶體頻寬瓶頸";
+                tpuText.innerText = "黃金區間：發揮脈動陣列優勢";
+                gpuText.parentElement.classList.remove('ring-2', 'ring-green-400');
+                tpuText.parentElement.classList.add('ring-2', 'ring-blue-400');
+            } else {
+                gpuText.innerText = "一般區間";
+                tpuText.innerText = "一般區間";
+                gpuText.parentElement.classList.remove('ring-2', 'ring-green-400');
+                tpuText.parentElement.classList.remove('ring-2', 'ring-blue-400');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initChart();
+        });
+
+    </script>
+</body>
+</html>
