@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>科隆島熱帶冒險 App</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        ocean: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        sand: '#fdfbf7',
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'wave': 'wave 25s linear infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        wave: {
+                            '0%': { transform: 'translateX(0)' },
+                            '100%': { transform: 'translateX(-50%)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0ea5e9;
+            color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
+            overflow: hidden; /* App-like: no body scroll */
+        }
+        
+        .glass-header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        
+        .glass-card-dark {
+             background: rgba(15, 23, 42, 0.6);
+             backdrop-filter: blur(12px);
+             color: white;
+        }
+
+        /* Hide Scrollbar but keep functionality */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .wave-bg {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 200%;
+            height: 50vh;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%23ffffff' fill-opacity='0.15' d='M0,192L48,197.3C96,203,192,213,288,229.3C384,245,480,267,576,250.7C672,235,768,181,864,181.3C960,181,1056,235,1152,234.7C1248,235,1344,181,1392,154.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: repeat-x;
+            background-size: 50% 100%;
+            z-index: -1;
+        }
+
+        /* Swipe Snap */
+        .snap-container {
+            scroll-snap-type: x mandatory;
+        }
+        .snap-item {
+            scroll-snap-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { MapPin, Clock, CloudSun, Calendar, Edit2, Plus, Trash2, ArrowUp, ArrowDown, X, Navigation, Coffee, Utensils, Waves, Camera, BedDouble, Plane, Music, Anchor } = lucide;
+
+        // --- 初始資料 (根據您的 PDF) ---
+        const initialData = [
+            {
+                id: 'day1',
+                date: '10/3',
+                weekday: '週五',
+                title: '抵達與市區探索',
+                weather: '晴 29°C',
+                activities: [
+                    { id: 101, time: '08:30', title: '抵達 USU 機場', type: 'transport', note: '環境稅200P，接送500P', location: 'Francisco B. Reyes Airport' },
+                    { id: 102, time: '09:30', title: '飯店 Check-in', type: 'hotel', note: 'MO2 Westown Lagoon', location: 'MO2 Westown Lagoon' },
+                    { id: 103, time: '10:00', title: 'Deyo Cafe 早午餐', type: 'food', note: '放鬆享用第一餐', location: 'Deyo Cafe Coron' },
+                    { id: 104, time: '12:00', title: 'Booms Eatery', type: 'food', note: '午餐：必吃烤豬排', location: 'Booms Eatery' },
+                    { id: 105, time: '13:00', title: 'Mathew\'s Crepe', type: 'food', note: '甜點時間', location: 'Mathew\'s island Crepe' },
+                    { id: 106, time: '16:30', title: '十字架山夕陽', type: 'view', note: '爬700階看全景', location: 'Mt. Tapyas' },
+                    { id: 107, time: '18:30', title: 'Maquinit 海水溫泉', type: 'relax', note: '門票300P，嘟嘟車500P', location: 'Maquinit Hot Spring' },
+                    { id: 108, time: '20:00', title: 'Gavin\'s Kitchen', type: 'food', note: '晚餐：Ribs, 海鮮拼盤', location: 'Gavin\'s Kitchen + Bar' },
+                    { id: 109, time: '22:00', title: 'Kalipay Spa', type: 'relax', note: '按摩放鬆', location: 'Kalipay Spa Coron' },
+                ]
+            },
+            {
+                id: 'day2',
+                date: '10/4',
+                weekday: '週六',
+                title: '經典跳島 A',
+                weather: '烈日 31°C',
+                activities: [
+                    { id: 201, time: '08:00', title: '出海接送', type: 'boat', note: '準備出發！每人約2600P', location: 'Coron Port' },
+                    { id: 202, time: '09:00', title: 'Kayangan Lake', type: 'view', note: '國湖，必拍景點', location: 'Kayangan Lake' },
+                    { id: 203, time: '10:30', title: 'Twin Lagoon', type: 'water', note: '雙子湖 冷熱交替水域', location: 'Twin Lagoon' },
+                    { id: 204, time: '12:30', title: '跳島午餐', type: 'food', note: '沙灘 BBQ', location: '' },
+                    { id: 205, time: '14:00', title: 'Siete Pecados', type: 'water', note: '七子礁岩浮潛', location: 'Siete Pecados' },
+                    { id: 206, time: '19:00', title: 'El Kuvo', type: 'food', note: '晚餐：菲式料理', location: 'El Kuvo' },
+                    { id: 207, time: '22:00', title: 'Bam Bar', type: 'activity', note: 'Live Band 現場演奏', location: 'Bam Bar' },
+                ]
+            },
+            {
+                id: 'day3',
+                date: '10/5',
+                weekday: '週日',
+                title: '遠程跳島 B',
+                weather: '晴時多雲 30°C',
+                activities: [
+                    { id: 301, time: '08:00', title: '出海接送', type: 'boat', note: '較遠船程，每人約2950P', location: 'Coron Port' },
+                    { id: 302, time: '10:00', title: 'Malcapuya Island', type: 'view', note: '純白沙灘，絕美海景', location: 'Malcapuya Island' },
+                    { id: 303, time: '12:00', title: 'Banana Island', type: 'view', note: '午餐與休憩', location: 'Banana Island' },
+                    { id: 304, time: '14:00', title: 'Waling Waling', type: 'water', note: '著名的沙洲', location: 'Waling Waling Island' },
+                    { id: 305, time: '19:00', title: 'Umamikusina', type: 'food', note: '晚餐：Pork Sisig, Curry Fish', location: 'Umamikusina' },
+                    { id: 306, time: '21:00', title: 'Kalipay Spa', type: 'relax', note: '再次按摩', location: 'Kalipay Spa Coron' },
+                ]
+            },
+            {
+                id: 'day4',
+                date: '10/6',
+                weekday: '週一',
+                title: '放鬆與返程',
+                weather: '晴 29°C',
+                activities: [
+                    { id: 401, time: '09:00', title: '飯店玩水', type: 'relax', note: '享受最後泳池時光', location: 'MO2 Westown Lagoon' },
+                    { id: 402, time: '10:30', title: '射擊場活動', type: 'activity', note: '體驗實彈射擊 (視情況)', location: 'Coron Shooting Range' },
+                    { id: 403, time: '12:00', title: 'Poco Deli', type: 'food', note: '午餐：Pizza, Pasta (勿點海鮮Pizza)', location: 'Poco Deli Coron' },
+                    { id: 404, time: '15:00', title: '前往機場', type: 'transport', note: '再見科隆！', location: 'Francisco B. Reyes Airport' },
+                    { id: 405, time: '18:30', title: '轉機晚餐', type: 'food', note: 'Las Flores (馬尼拉機場)', location: 'Las Flores Manila' },
+                    { id: 406, time: '22:40', title: '搭機返台', type: 'transport', note: 'CebuAir 5J310', location: 'Ninoy Aquino International Airport' },
+                ]
+            }
+        ];
+
+        // --- Icon Mapping ---
+        const getIcon = (type) => {
+            switch(type) {
+                case 'food': return <Utensils size={18} />;
+                case 'view': return <Camera size={18} />;
+                case 'water': return <Waves size={18} />;
+                case 'hotel': return <BedDouble size={18} />;
+                case 'transport': return <Plane size={18} />;
+                case 'boat': return <Anchor size={18} />;
+                case 'activity': return <Music size={18} />;
+                case 'relax': return <Coffee size={18} />;
+                default: return <MapPin size={18} />;
+            }
+        };
+
+        const getTypeColor = (type) => {
+             switch(type) {
+                case 'food': return 'bg-orange-100 text-orange-600';
+                case 'view': return 'bg-emerald-100 text-emerald-600';
+                case 'water': return 'bg-cyan-100 text-cyan-600';
+                case 'hotel': return 'bg-violet-100 text-violet-600';
+                case 'transport': return 'bg-slate-200 text-slate-600';
+                case 'boat': return 'bg-blue-100 text-blue-600';
+                case 'relax': return 'bg-rose-100 text-rose-600';
+                default: return 'bg-gray-100 text-gray-600';
+            }
+        };
+
+        // --- Components ---
+
+        const Modal = ({ isOpen, onClose, children }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
+                    <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-float-up">
+                        {children}
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [schedule, setSchedule] = useState(initialData);
+            const [activeDayIdx, setActiveDayIdx] = useState(0);
+            const [currentTime, setCurrentTime] = useState(new Date());
+            const [editMode, setEditMode] = useState(false);
+            const [editingItem, setEditingItem] = useState(null); // { dayIdx, actIdx, data }
+            const scrollRef = useRef(null);
+
+            // Load & Save
+            useEffect(() => {
+                const saved = localStorage.getItem('coronApp_v2');
+                if (saved) setSchedule(JSON.parse(saved));
+            }, []);
+            useEffect(() => {
+                localStorage.setItem('coronApp_v2', JSON.stringify(schedule));
+            }, [schedule]);
+
+            // Clock
+            useEffect(() => {
+                const timer = setInterval(() => setCurrentTime(new Date()), 10000);
+                return () => clearInterval(timer);
+            }, []);
+
+            // Scroll Handler
+            const scrollToDay = (idx) => {
+                setActiveDayIdx(idx);
+                setEditMode(false); // Switch day turns off edit mode
+                if (scrollRef.current) {
+                    const width = scrollRef.current.offsetWidth;
+                    scrollRef.current.scrollTo({ left: width * idx, behavior: 'smooth' });
+                }
+            };
+            
+            // Handle horizontal scroll snap detection
+            const handleScroll = (e) => {
+                 const width = e.target.offsetWidth;
+                 const scrollLeft = e.target.scrollLeft;
+                 const idx = Math.round(scrollLeft / width);
+                 if (idx !== activeDayIdx && idx >= 0 && idx < schedule.length) {
+                     setActiveDayIdx(idx);
+                     setEditMode(false);
+                 }
+            };
+
+            // Actions
+            const deleteItem = (dayIdx, actIdx) => {
+                if(!confirm("確定刪除此行程？")) return;
+                const newSchedule = [...schedule];
+                newSchedule[dayIdx].activities.splice(actIdx, 1);
+                setSchedule(newSchedule);
+            };
+
+            const moveItem = (dayIdx, actIdx, direction) => {
+                const newSchedule = [...schedule];
+                const list = newSchedule[dayIdx].activities;
+                if (direction === -1 && actIdx > 0) {
+                    [list[actIdx], list[actIdx-1]] = [list[actIdx-1], list[actIdx]];
+                } else if (direction === 1 && actIdx < list.length - 1) {
+                    [list[actIdx], list[actIdx+1]] = [list[actIdx+1], list[actIdx]];
+                }
+                setSchedule(newSchedule);
+            };
+
+            const openGoogleMap = (location) => {
+                if (!location) return;
+                window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location + ' Coron Palawan')}`, '_blank');
+            };
+
+            const saveItemEdit = (newItem) => {
+                const newSchedule = [...schedule];
+                if (editingItem.actIdx === -1) {
+                    // Add new
+                    newSchedule[activeDayIdx].activities.push(newItem);
+                    newSchedule[activeDayIdx].activities.sort((a,b) => a.time.localeCompare(b.time));
+                } else {
+                    // Update
+                    newSchedule[activeDayIdx].activities[editingItem.actIdx] = newItem;
+                }
+                setSchedule(newSchedule);
+                setEditingItem(null);
+            };
+
+            return (
+                <div className="relative h-screen flex flex-col font-sans text-slate-800">
+                    
+                    {/* Background Animation */}
+                    <div className="fixed inset-0 bg-gradient-to-b from-ocean-400 to-ocean-600 -z-20"></div>
+                    <div className="wave-bg animate-wave"></div>
+
+                    {/* Top Bar (Glass) */}
+                    <header className="glass-header pt-12 pb-2 px-5 text-white flex justify-between items-end z-10 shrink-0">
+                        <div>
+                            <div className="flex items-center gap-2 opacity-90 mb-1">
+                                <Calendar size={14} />
+                                <span className="text-xs tracking-wider font-medium uppercase">Travel Itinerary</span>
+                            </div>
+                            <h1 className="text-2xl font-bold tracking-tight">科隆冒險</h1>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-2xl font-light font-mono leading-none">
+                                {currentTime.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', hour12: false})}
+                            </div>
+                            <div className="text-xs text-ocean-100 mt-1 flex items-center justify-end gap-1">
+                                <CloudSun size={12} />
+                                {schedule[activeDayIdx].weather}
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Date Tabs */}
+                    <div className="bg-ocean-600/30 backdrop-blur-sm pt-2 pb-2 px-2 flex gap-2 overflow-x-auto no-scrollbar shrink-0 z-10">
+                        {schedule.map((day, idx) => (
+                            <button
+                                key={day.id}
+                                onClick={() => scrollToDay(idx)}
+                                className={`flex-1 min-w-[80px] py-2 rounded-xl transition-all duration-300 flex flex-col items-center ${
+                                    idx === activeDayIdx 
+                                    ? 'bg-white text-ocean-600 shadow-lg scale-100 opacity-100' 
+                                    : 'bg-white/10 text-white scale-95 opacity-70 hover:bg-white/20'
+                                }`}
+                            >
+                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-80">{day.weekday}</span>
+                                <span className="text-lg font-bold leading-none mt-0.5">{day.date}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Main Content (Swipeable) */}
+                    <div 
+                        ref={scrollRef}
+                        onScroll={handleScroll}
+                        className="flex-1 overflow-x-auto overflow-y-hidden snap-container no-scrollbar flex relative"
+                    >
+                        {schedule.map((day, dayIdx) => (
+                            <div key={day.id} className="min-w-full h-full snap-item overflow-y-auto p-4 pb-24 no-scrollbar">
+                                
+                                <div className="glass-card-dark rounded-2xl p-4 mb-4 flex justify-between items-center">
+                                    <div>
+                                        <h2 className="text-lg font-bold">{day.title}</h2>
+                                        <p className="text-xs text-slate-300 mt-1">
+                                            {day.activities.length} 個行程
+                                        </p>
+                                    </div>
+                                    <button 
+                                        onClick={() => setEditMode(!editMode)}
+                                        className={`p-2 rounded-full transition-colors ${editMode ? 'bg-rose-500 text-white' : 'bg-white/10 text-white'}`}
+                                    >
+                                        {editMode ? <X size={18}/> : <Edit2 size={18}/>}
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {day.activities.map((act, actIdx) => (
+                                        <div 
+                                            key={act.id} 
+                                            className="flex gap-3 relative group"
+                                            onContextMenu={(e) => {e.preventDefault(); setEditMode(true);}}
+                                        >
+                                            {/* Time Column */}
+                                            <div className="flex flex-col items-center pt-2 w-12 shrink-0">
+                                                <span className="text-xs font-bold text-white/90 font-mono">{act.time}</span>
+                                                <div className="h-full w-0.5 bg-white/20 my-1 rounded-full"></div>
+                                            </div>
+
+                                            {/* Card */}
+                                            <div className={`flex-1 glass-card rounded-2xl p-3.5 transition-all relative ${editMode ? 'translate-x-2' : ''}`}>
+                                                
+                                                {/* Header */}
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`p-1.5 rounded-lg ${getTypeColor(act.type)}`}>
+                                                            {getIcon(act.type)}
+                                                        </div>
+                                                        <h3 className="font-bold text-slate-800 leading-tight">{act.title}</h3>
+                                                    </div>
+                                                </div>
+
+                                                {/* Note */}
+                                                {act.note && <p className="text-xs text-slate-500 pl-8 mb-2 line-clamp-2">{act.note}</p>}
+
+                                                {/* Footer Actions */}
+                                                {!editMode && act.location && (
+                                                    <div className="flex justify-end mt-1">
+                                                        <button 
+                                                            onClick={() => openGoogleMap(act.location)}
+                                                            className="flex items-center gap-1 text-[10px] font-bold text-ocean-600 bg-ocean-50 px-2 py-1 rounded-full active:bg-ocean-100"
+                                                        >
+                                                            <Navigation size={10} /> GOOGLE MAP
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* Edit Overlay Controls */}
+                                                {editMode && (
+                                                    <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-white via-white to-transparent pl-4 flex items-center justify-end gap-1 pr-2 rounded-r-2xl">
+                                                        <div className="flex flex-col gap-1">
+                                                            <button 
+                                                                disabled={actIdx===0}
+                                                                onClick={() => moveItem(dayIdx, actIdx, -1)}
+                                                                className="p-1.5 bg-slate-100 text-slate-600 rounded-md disabled:opacity-30"
+                                                            ><ArrowUp size={14}/></button>
+                                                            <button 
+                                                                disabled={actIdx===day.activities.length-1}
+                                                                onClick={() => moveItem(dayIdx, actIdx, 1)}
+                                                                className="p-1.5 bg-slate-100 text-slate-600 rounded-md disabled:opacity-30"
+                                                            ><ArrowDown size={14}/></button>
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => setEditingItem({dayIdx, actIdx, data: {...act}})}
+                                                            className="p-2 bg-ocean-100 text-ocean-600 rounded-full"
+                                                        >
+                                                            <Edit2 size={16}/>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => deleteItem(dayIdx, actIdx)}
+                                                            className="p-2 bg-rose-100 text-rose-500 rounded-full"
+                                                        >
+                                                            <Trash2 size={16}/>
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    
+                                    <div className="h-20"></div> {/* Bottom Spacer */}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Floating Add Button */}
+                    <button 
+                        onClick={() => setEditingItem({dayIdx: activeDayIdx, actIdx: -1, data: {time:'12:00', title:'', type:'activity', location:''}})}
+                        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-ocean-500 to-ocean-400 text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-20 border-4 border-white/20"
+                    >
+                        <Plus size={28} />
+                    </button>
+
+                    {/* Edit/Add Modal */}
+                    {editingItem && (
+                        <Modal isOpen={true} onClose={() => setEditingItem(null)}>
+                            <div className="bg-ocean-500 p-4 text-white">
+                                <h3 className="text-lg font-bold">{editingItem.actIdx === -1 ? '新增行程' : '編輯行程'}</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                                <div className="grid grid-cols-4 gap-4">
+                                    <div className="col-span-1">
+                                        <label className="text-xs font-bold text-gray-400">時間</label>
+                                        <input 
+                                            type="time" 
+                                            value={editingItem.data.time}
+                                            onChange={e => setEditingItem({...editingItem, data: {...editingItem.data, time: e.target.value}})}
+                                            className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2 text-center font-bold text-lg"
+                                        />
+                                    </div>
+                                    <div className="col-span-3">
+                                        <label className="text-xs font-bold text-gray-400">名稱</label>
+                                        <input 
+                                            type="text" 
+                                            value={editingItem.data.title}
+                                            onChange={e => setEditingItem({...editingItem, data: {...editingItem.data, title: e.target.value}})}
+                                            className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-2.5 font-bold"
+                                            placeholder="行程名稱"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 mb-1 block">類型</label>
+                                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                                        {['food','view','water','relax','boat','transport','hotel','activity'].map(type => (
+                                            <button
+                                                key={type}
+                                                onClick={() => setEditingItem({...editingItem, data: {...editingItem.data, type}})}
+                                                className={`p-2 rounded-lg border flex-shrink-0 ${editingItem.data.type === type ? 'bg-ocean-500 text-white border-ocean-500' : 'bg-white text-gray-400 border-gray-200'}`}
+                                            >
+                                                {React.cloneElement(getIcon(type), {size: 20})}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400">備註</label>
+                                    <textarea 
+                                        rows="2"
+                                        value={editingItem.data.note || ''}
+                                        onChange={e => setEditingItem({...editingItem, data: {...editingItem.data, note: e.target.value}})}
+                                        className="w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm"
+                                        placeholder="詳細資訊..."
+                                    ></textarea>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400">地點 (Google Map 關鍵字)</label>
+                                    <div className="relative">
+                                        <MapPin size={16} className="absolute left-3 top-3 text-gray-400"/>
+                                        <input 
+                                            type="text" 
+                                            value={editingItem.data.location || ''}
+                                            onChange={e => setEditingItem({...editingItem, data: {...editingItem.data, location: e.target.value}})}
+                                            className="w-full mt-1 pl-9 bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-sm"
+                                            placeholder="例如: Kayangan Lake"
+                                        />
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={() => saveItemEdit(editingItem.data)}
+                                    className="w-full py-3 mt-2 bg-ocean-500 hover:bg-ocean-600 text-white rounded-xl font-bold shadow-lg shadow-ocean-200/50 active:scale-95 transition-transform"
+                                >
+                                    儲存
+                                </button>
+                            </div>
+                        </Modal>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企業算力決策儀表板：TPU vs GPU</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
+        .gradient-gpu { background: linear-gradient(135deg, #76b900 0%, #1a4d00 100%); }
+        .gradient-tpu { background: linear-gradient(135deg, #4285F4 0%, #0d47a1 100%); }
+        .card-hover:hover { transform: translateY(-5px); transition: all 0.3s ease; }
+        
+        /* Custom Scrollbar for sleek look */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        /* Animation classes */
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-gray-800">⚡ 算力決策中心</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="switchTab('wizard')" id="tab-wizard" class="px-3 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700">決策嚮導</button>
+                    <button onclick="switchTab('comparison')" id="tab-comparison" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900">詳細對比 & 模擬</button>
+                    <button onclick="switchTab('education')" id="tab-education" class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900">原理圖解</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- TAB 1: Decision Wizard -->
+        <div id="content-wizard" class="block space-y-8">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold text-gray-900">我該選哪一個？</h2>
+                <p class="mt-2 text-lg text-gray-600">回答以下三個關於您專案的問題，系統將為您推薦最佳方案。</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Question Form -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">1. 您的主要任務類型是？</label>
+                            <select id="q1" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                                <option value="graphics">圖形渲染 / 3D 遊戲開發 / 影片剪輯</option>
+                                <option value="general_ai">通用 AI 開發 (小模型、多種架構嘗試)</option>
+                                <option value="massive_ai">超大規模 AI 訓練 (如 LLM, 推薦系統)</option>
+                                <option value="scientific">傳統科學計算 (流體力學, 分子模擬)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">2. 您使用的開發框架或生態系？</label>
+                            <select id="q2" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                                <option value="cuda">高度依賴 CUDA / C++ 自定義算子</option>
+                                <option value="pytorch">PyTorch (標準版)</option>
+                                <option value="tensorflow">TensorFlow / JAX / PyTorch XLA</option>
+                                <option value="graphic_eng">Unreal Engine / Unity / Blender</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">3. 專案的運算規模與預算敏感度？</label>
+                            <select id="q3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                                <option value="small">小規模 / 快速原型開發 (不在乎電費)</option>
+                                <option value="medium">中等規模 / 需要靈活調試</option>
+                                <option value="huge">極大規模 / 極度在乎電費與訓練時間 (成本敏感)</option>
+                            </select>
+                        </div>
+
+                        <button id="analyze-btn" onclick="calculateRecommendation()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition flex justify-center items-center">
+                            <span>分析並取得建議</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Result Display Area -->
+                <div class="relative">
+                    <!-- Result Display -->
+                    <div id="result-card" class="bg-gray-50 p-6 rounded-xl shadow-inner border border-gray-200 flex flex-col justify-center items-center text-center hidden h-full min-h-[300px]">
+                        <!-- Dynamic Content will be injected here -->
+                    </div>
+                    
+                    <!-- Placeholder for result -->
+                    <div id="result-placeholder" class="bg-white p-6 rounded-xl shadow border border-gray-200 flex flex-col justify-center items-center text-center opacity-50 h-full min-h-[300px]">
+                        <div class="text-6xl mb-4">🤖</div>
+                        <h3 class="text-xl font-bold">等待分析...</h3>
+                        <p>請左側選擇條件後點擊按鈕</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: Comparison & Simulation -->
+        <div id="content-comparison" class="hidden space-y-8">
+            
+            <!-- Scale Simulator -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h3 class="text-2xl font-bold mb-4 text-gray-800">📈 成本效益模擬器</h3>
+                <p class="text-gray-600 mb-6">拖動滑桿，觀察隨著「模型參數量（矩陣規模）」變大，GPU 與 TPU 的效能與成本變化。</p>
+                
+                <div class="flex items-center space-x-4 mb-6">
+                    <span class="text-sm font-bold text-gray-500">小型專案</span>
+                    <input type="range" min="1" max="100" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" id="scaleSlider" oninput="updateChart(this.value)">
+                    <span class="text-sm font-bold text-red-500">超大型專案 (LLM)</span>
+                </div>
+
+                <div class="h-64 w-full">
+                    <canvas id="efficiencyChart"></canvas>
+                </div>
+                <div class="mt-4 grid grid-cols-2 gap-4 text-center">
+                    <div class="p-3 bg-green-50 rounded border border-green-200">
+                        <h4 class="font-bold text-green-800">GPU 狀態</h4>
+                        <p id="gpu-status-text" class="text-sm text-green-700">處理中...</p>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded border border-blue-200">
+                        <h4 class="font-bold text-blue-800">TPU 狀態</h4>
+                        <p id="tpu-status-text" class="text-sm text-blue-700">處理中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comparison Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- GPU Card -->
+                <div class="bg-white rounded-xl shadow overflow-hidden card-hover">
+                    <div class="p-4 gradient-gpu">
+                        <h3 class="text-white text-xl font-bold flex items-center">
+                            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                            GPU (通用戰士)
+                        </h3>
+                    </div>
+                    <div class="p-6">
+                        <ul class="space-y-3 text-sm">
+                            <li class="flex items-start"><span class="text-green-600 mr-2">✔</span> <b>靈活度極高</b>：支援 CUDA，幾乎所有 AI 框架與科學計算皆通。</li>
+                            <li class="flex items-start"><span class="text-green-600 mr-2">✔</span> <b>圖形處理</b>：唯一選擇，用於渲染、遊戲、影像解碼。</li>
+                            <li class="flex items-start"><span class="text-green-600 mr-2">✔</span> <b>小批量優勢</b>：如果 batch size 小，GPU 反應更快。</li>
+                            <li class="flex items-start"><span class="text-red-500 mr-2">✘</span> <b>記憶體瓶頸</b>：在大規模矩陣運算時，頻寬限制較大。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- TPU Card -->
+                <div class="bg-white rounded-xl shadow overflow-hidden card-hover">
+                    <div class="p-4 gradient-tpu">
+                        <h3 class="text-white text-xl font-bold flex items-center">
+                            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                            TPU (矩陣專家)
+                        </h3>
+                    </div>
+                    <div class="p-6">
+                        <ul class="space-y-3 text-sm">
+                            <li class="flex items-start"><span class="text-blue-600 mr-2">✔</span> <b>吞吐量怪物</b>：使用脈動陣列，處理超大矩陣乘法速度極快。</li>
+                            <li class="flex items-start"><span class="text-blue-600 mr-2">✔</span> <b>能效比之王</b>：每瓦特電力能算更多次，適合 24 小時不停機訓練。</li>
+                            <li class="flex items-start"><span class="text-blue-600 mr-2">✔</span> <b>線性擴展</b>：多顆 TPU 串聯 (TPU Pod) 效率耗損極低。</li>
+                            <li class="flex items-start"><span class="text-red-500 mr-2">✘</span> <b>生態系限制</b>：高度綁定 TensorFlow/JAX (雖 PyTorch 支援度變好，但仍不如 GPU)。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: Education -->
+        <div id="content-education" class="hidden space-y-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Concept 1: Matrix Operations -->
+                <div class="bg-white p-6 rounded-xl shadow border-l-4 border-blue-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">什麼是矩陣運算？ (Matrix Ops)</h3>
+                    <div class="bg-gray-100 p-4 rounded mb-4 text-center">
+                        <div class="text-4xl mb-2">🔢 ✖️ 🔢</div>
+                        <p class="text-xs text-gray-500">AI 的本質就是兩個巨大的數字表相乘</p>
+                    </div>
+                    <p class="text-gray-600 mb-4">
+                        試想你要算 100 萬個學生的加權平均分數。
+                        <br><br>
+                        <b>GPU (切菜工)</b>：叫 1000 個人進來，每人算 1000 個學生的分數。算完要回報（存取記憶體），再領下一批任務。人多手雜，管理成本高。
+                        <br><br>
+                        <b>TPU (流水線)</b>：建立一條專門的輸送帶。學生的分數從一頭放進去，經過中間的機器直接算出結果從另一頭出來。<b>數據在晶片內部流動，不需要一直跑去倉庫（記憶體）</b>。這就是「脈動陣列」。
+                    </p>
+                </div>
+
+                <!-- Concept 2: Power Efficiency -->
+                <div class="bg-white p-6 rounded-xl shadow border-l-4 border-green-500">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">什麼是能效比？ (Energy Efficiency)</h3>
+                    <div class="bg-gray-100 p-4 rounded mb-4 text-center">
+                        <div class="text-4xl mb-2">⚡ 💰</div>
+                        <p class="text-xs text-gray-500">每花 1 塊錢電費，能做多少事？</p>
+                    </div>
+                    <p class="text-gray-600 mb-4">
+                        對於企業來說，這直接等於<b>營運成本 (OpEx)</b>。
+                        <br><br>
+                        當訓練一個像是 ChatGPT 的模型需要數個月時，GPU 因為頻繁讀寫記憶體（這動作很耗電且產生廢熱），電費可能高達數百萬美元。
+                        <br><br>
+                        TPU 因為減少了記憶體存取次數（數據復用），它可以用更少的電，完成同樣的計算量。這就是高能效比。
+                    </p>
+                </div>
+            </div>
+
+            <!-- Analogy Visual -->
+            <div class="bg-indigo-900 rounded-xl p-8 text-white text-center">
+                <h3 class="text-2xl font-bold mb-4">一句話總結</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+                    <div>
+                        <div class="text-6xl mb-4">⚔️</div>
+                        <h4 class="text-xl font-bold text-green-400">GPU = 特種部隊</h4>
+                        <p class="mt-2 text-indigo-200">什麼武器都會用，反應快，適應力強，能打游擊戰。</p>
+                        <p class="mt-1 text-sm text-gray-400">適合：多變的任務、開發階段</p>
+                    </div>
+                    <div>
+                        <div class="text-6xl mb-4">🏭</div>
+                        <h4 class="text-xl font-bold text-blue-400">TPU = 自動化超級工廠</h4>
+                        <p class="mt-2 text-indigo-200">只能生產特定產品，但產能是手工業的一萬倍。</p>
+                        <p class="mt-1 text-sm text-gray-400">適合：大規模量產、模型訓練</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Script for Logic -->
+    <script>
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            // Hide all content
+            ['wizard', 'comparison', 'education'].forEach(id => {
+                document.getElementById('content-' + id).classList.add('hidden');
+                document.getElementById('tab-' + id).classList.remove('bg-blue-100', 'text-blue-700');
+                document.getElementById('tab-' + id).classList.add('text-gray-600');
+            });
+
+            // Show selected
+            document.getElementById('content-' + tabId).classList.remove('hidden');
+            document.getElementById('tab-' + tabId).classList.add('bg-blue-100', 'text-blue-700');
+            document.getElementById('tab-' + tabId).classList.remove('text-gray-600');
+        }
+
+        // Decision Wizard Logic
+        function calculateRecommendation() {
+            // UI Feedback: Button Loading State
+            const btn = document.getElementById('analyze-btn');
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 分析中...`;
+            btn.disabled = true;
+
+            // Fade out existing result if visible
+            const resCard = document.getElementById('result-card');
+            const placeholder = document.getElementById('result-placeholder');
+            resCard.classList.add('opacity-0'); 
+            
+            // Simulate processing delay (500ms) for better UX
+            setTimeout(() => {
+                const task = document.getElementById('q1').value;
+                const framework = document.getElementById('q2').value;
+                const scale = document.getElementById('q3').value;
+                
+                let resultType = '';
+                let title = '';
+                let desc = '';
+                let colorClass = '';
+                let icon = '';
+
+                // Logic Tree
+                if (task === 'graphics' || framework === 'graphic_eng') {
+                    resultType = 'GPU';
+                    title = '推薦使用 GPU';
+                    desc = 'TPU 無法處理圖形渲染、光線追蹤或 3D 建模任務。這是 GPU 的絕對領域。';
+                    colorClass = 'bg-green-100 border-green-500 text-green-800';
+                    icon = '🎮';
+                } else if (framework === 'cuda') {
+                    resultType = 'GPU';
+                    title = '推薦使用 GPU';
+                    desc = '您的程式碼高度依賴 CUDA 生態系或 C++ 自定義算子，移植到 TPU (需改寫為 XLA) 的成本過高。';
+                    colorClass = 'bg-green-100 border-green-500 text-green-800';
+                    icon = '⚙️';
+                } else if (task === 'scientific' && framework !== 'tensorflow' && framework !== 'jax') {
+                    resultType = 'GPU';
+                    title = '推薦使用 GPU';
+                    desc = '傳統科學計算庫對 GPU 的支援遠好於 TPU。';
+                    colorClass = 'bg-green-100 border-green-500 text-green-800';
+                    icon = '🧪';
+                } else if (scale === 'huge' && (framework === 'tensorflow' || framework === 'jax' || framework === 'pytorch')) {
+                    resultType = 'TPU';
+                    title = '強烈推薦使用 TPU';
+                    desc = '在極大規模訓練下，TPU 的「線性擴展能力」與「能效比」將為公司節省大量時間與數百萬的電力成本。Google 雲端生態系對此支援最佳。';
+                    colorClass = 'bg-blue-100 border-blue-500 text-blue-800';
+                    icon = '🏭';
+                } else if (scale === 'medium' && (framework === 'tensorflow' || framework === 'jax')) {
+                    resultType = 'TPU';
+                    title = '建議嘗試 TPU';
+                    desc = '既然您使用 JAX/TensorFlow，TPU 能提供極佳的性價比。';
+                    colorClass = 'bg-blue-50 border-blue-400 text-blue-700';
+                    icon = '🚀';
+                } else {
+                    // Default fallback
+                    resultType = 'GPU';
+                    title = '建議使用 GPU';
+                    desc = 'GPU 的通用性最高，生態系最完整。對於原型開發、除錯或中小規模任務，GPU 是最安全的選擇，租用也最方便（AWS, GCP, Azure 都有）。';
+                    colorClass = 'bg-green-50 border-green-400 text-green-700';
+                    icon = '🛡️';
+                }
+
+                // Render Result
+                const resultHTML = `
+                    <div class="${colorClass} p-8 rounded-full w-24 h-24 flex items-center justify-center text-4xl mb-4 shadow-sm mx-auto fade-in">
+                        ${icon}
+                    </div>
+                    <div class="fade-in">
+                        <h3 class="text-2xl font-bold mb-2 ${resultType === 'GPU' ? 'text-green-800' : 'text-blue-800'}">${title}</h3>
+                        <p class="text-gray-700 max-w-md mx-auto">${desc}</p>
+                        <div class="mt-6 text-sm text-gray-500 bg-white bg-opacity-50 p-3 rounded">
+                            核心考量：${resultType === 'GPU' ? '靈活性、圖形支援、CUDA 生態' : '矩陣運算效率、能效比、擴展性'}
+                        </div>
+                    </div>
+                `;
+
+                // Update DOM
+                placeholder.classList.add('hidden');
+                resCard.classList.remove('hidden');
+                resCard.innerHTML = resultHTML;
+                resCard.className = `p-8 rounded-xl shadow-lg border-2 flex flex-col justify-center items-center text-center transition-all duration-300 h-full min-h-[300px] ${resultType === 'GPU' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`;
+                
+                // Trigger Fade In
+                // Removing opacity-0 class to fade in if it was already there, 
+                // but we also rely on inner content animation.
+                setTimeout(() => resCard.classList.remove('opacity-0'), 10);
+
+                // Reset Button
+                btn.innerHTML = originalBtnText;
+                btn.disabled = false;
+
+            }, 500); // 500ms delay simulates calculation
+        }
+
+        // Chart Logic
+        let myChart = null;
+
+        function initChart() {
+            const ctx = document.getElementById('efficiencyChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['小模型', '中模型', '大模型', '超大模型'],
+                    datasets: [{
+                        label: 'GPU 單位運算成本 ($)',
+                        data: [10, 25, 60, 100], // Linear increase
+                        borderColor: '#76b900',
+                        backgroundColor: '#76b900',
+                        tension: 0.4
+                    }, {
+                        label: 'TPU 單位運算成本 ($)',
+                        data: [20, 30, 45, 55], // High startup cost, but efficient at scale
+                        borderColor: '#4285F4',
+                        backgroundColor: '#4285F4',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: '相對成本 (越低越好)' }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.raw;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart(val) {
+            // Simulate changing efficiency based on scale
+            // Val 1-100
+            
+            const numericVal = parseInt(val);
+            const gpuCost = 10 + (numericVal * 1.2); // GPU costs rise linearly with complexity
+            const tpuCost = 30 + (numericVal * 0.4); // TPU has higher base cost but scales better
+
+            // Text update
+            const gpuText = document.getElementById('gpu-status-text');
+            const tpuText = document.getElementById('tpu-status-text');
+
+            if (numericVal < 30) {
+                gpuText.innerText = "高效率區間：靈活且快速";
+                tpuText.innerText = "低效率區間：啟動開銷過大";
+                gpuText.parentElement.classList.add('ring-2', 'ring-green-400');
+                tpuText.parentElement.classList.remove('ring-2', 'ring-blue-400');
+            } else if (numericVal > 70) {
+                gpuText.innerText = "成本激增：記憶體頻寬瓶頸";
+                tpuText.innerText = "黃金區間：發揮脈動陣列優勢";
+                gpuText.parentElement.classList.remove('ring-2', 'ring-green-400');
+                tpuText.parentElement.classList.add('ring-2', 'ring-blue-400');
+            } else {
+                gpuText.innerText = "一般區間";
+                tpuText.innerText = "一般區間";
+                gpuText.parentElement.classList.remove('ring-2', 'ring-green-400');
+                tpuText.parentElement.classList.remove('ring-2', 'ring-blue-400');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initChart();
+        });
+
+    </script>
+</body>
+</html>
+
+
